@@ -1,6 +1,6 @@
 use input_handler::InputHandler;
-use zynk::engine::kv::LsmEngine;
 use std::path::PathBuf;
+use zynk::engine::kv::LsmEngine;
 
 fn main() {
     let mut engine = LsmEngine::new_with_manifest("data", 64 * 1024, 8 * 1024).expect("engine");

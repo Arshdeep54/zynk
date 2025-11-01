@@ -1,6 +1,4 @@
-use crate::storage::manifest::{
-    Manifest, fsync_dir, open_manifest_append, read_current_or_init
-};
+use crate::storage::manifest::{Manifest, fsync_dir, open_manifest_append, read_current_or_init};
 use crate::storage::memtable::{Entry, MemTable, MemTableSet, flush_memtable_to_sstable};
 use crate::storage::sstable::{TableId, reader::SsTableReader};
 use std::fs;

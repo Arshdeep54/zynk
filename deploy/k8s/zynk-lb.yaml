@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zynk-lb
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: zynk-lb }
+  template:
+    metadata:
+      labels: { app: zynk-lb }
+    spec:
+      containers:
+        - name: zynk-lb
+          image: zynk-kv:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/zynk_lb"]
+          ports:
+            - name: grpc
+              containerPort: 60051
+          env:
+            - name: LB_PORT
+              value: "60051"
+            - name: LB_BIND_IP
+              value: "0.0.0.0"
+            - name: PEERS
+              value: "zynkd-0.zynkd-headless:50051,zynkd-1.zynkd-headless:50051,zynkd-2.zynkd-headless:50051"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zynk-lb
+spec:
+  type: LoadBalancer
+  selector:
+    app: zynk-lb
+  ports:
+    - name: grpc
+      port: 60051
+      targetPort: 60051

@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: zynkd
+spec:
+  serviceName: zynkd-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app: zynkd
+  template:
+    metadata:
+      labels:
+        app: zynkd
+    spec:
+      containers:
+        - name: zynkd
+          image: zynk-kv:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: grpc
+              containerPort: 50051
+          env:
+            - name: PORT
+              value: "50051"
+            - name: BIND_IP
+              value: "0.0.0.0"
+            - name: DATA_DIR
+              value: "/data"
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: PEERS
+              value: "zynkd-0.zynkd-headless:50051,zynkd-1.zynkd-headless:50051,zynkd-2.zynkd-headless:50051"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            tcpSocket: { port: grpc }
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: grpc }
+            periodSeconds: 10
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi

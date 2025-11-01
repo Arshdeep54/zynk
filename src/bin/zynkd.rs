@@ -1,9 +1,9 @@
-use zynk::engine::kv::LsmEngine;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
+use zynk::engine::kv::LsmEngine;
 
 pub mod pb {
     tonic::include_proto!("kv");
@@ -29,8 +29,14 @@ impl Kv for KvSvc {
         let req = request.into_inner();
         let eng = self.engine.read().await;
         match eng.get(&req.key).map_err(to_status)? {
-            Some(v) => Ok(Response::new(GetResponse { value: v, found: true })),
-            None => Ok(Response::new(GetResponse { value: Vec::new(), found: false })),
+            Some(v) => Ok(Response::new(GetResponse {
+                value: v,
+                found: true,
+            })),
+            None => Ok(Response::new(GetResponse {
+                value: Vec::new(),
+                found: false,
+            })),
         }
     }
 
@@ -42,19 +48,32 @@ impl Kv for KvSvc {
     }
 }
 
-fn to_status(e: std::io::Error) -> Status { Status::internal(e.to_string()) }
+fn to_status(e: std::io::Error) -> Status {
+    Status::internal(e.to_string())
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let port: u16 = std::env::var("PORT").ok().and_then(|s| s.parse().ok()).unwrap_or(50051);
+    let port: u16 = std::env::var("PORT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(50051);
     let bind_ip = std::env::var("BIND_IP").unwrap_or_else(|_| "0.0.0.0".to_string());
     let addr: SocketAddr = format!("{}:{}", bind_ip, port).parse()?;
 
     let data_dir = PathBuf::from(std::env::var("DATA_DIR").unwrap_or_else(|_| "/data".to_string()));
+    let node_id = std::env::var("NODE_ID").unwrap_or_else(|_| "node-unknown".to_string());
     let engine = LsmEngine::new_with_manifest(&data_dir, 64 * 1024, 8 * 1024)?;
-    let svc = KvSvc { engine: Arc::new(RwLock::new(engine)) };
+    let svc = KvSvc {
+        engine: Arc::new(RwLock::new(engine)),
+    };
 
-    println!("zynkd listening on {} (DATA_DIR={})", addr, data_dir.display());
+    println!(
+        "zynkd listening on {} (NODE_ID={}, DATA_DIR={})",
+        addr,
+        node_id,
+        data_dir.display()
+    );
     tonic::transport::Server::builder()
         .add_service(KvServer::new(svc))
         .serve(addr)
