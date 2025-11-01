@@ -104,6 +104,65 @@ impl LsmEngine {
         }
         Ok(())
     }
+    
+    pub fn gset_add(&mut self, key: Vec<u8>, elem: Vec<u8>) -> std::io::Result<()> {
+        use crate::engine::crdt::{GSet, CRDT};
+
+        if let Some(entry) = self.memtables.get(&key) {
+            if let crate::storage::memtable::Entry::Put(existing_bytes) = entry {
+                let mut gs = GSet::from_bytes(existing_bytes);
+                gs.insert(elem);
+                let new_bytes = gs.to_bytes();
+                if let Some(frozen) = self.memtables.put(&key, &new_bytes) {
+                    self.flush_immutable(frozen)?;
+                }
+                return Ok(());
+            }
+        }
+
+        for (_, _path, reader) in self.sstables.iter().rev() {
+            if let Some(bytes) = reader.get(&key)? {
+                let mut gs = GSet::from_bytes(&bytes);
+                gs.insert(elem);
+                let new_bytes = gs.to_bytes();
+                if let Some(frozen) = self.memtables.put(&key, &new_bytes) {
+                    self.flush_immutable(frozen)?;
+                }
+                return Ok(());
+            }
+        }
+
+        let mut gs = GSet::new();
+        gs.insert(elem);
+        let new_bytes = gs.to_bytes();
+        if let Some(frozen) = self.memtables.put(&key, &new_bytes) {
+            self.flush_immutable(frozen)?;
+        }
+        Ok(())
+    }
+
+    pub fn gset_get(&self, key: &[u8]) -> std::io::Result<Vec<Vec<u8>>> {
+        use crate::engine::crdt::{GSet, CRDT};
+        use crate::storage::memtable::Entry;
+
+        let mut result = GSet::new();
+
+        if let Some(entry) = self.memtables.get(key) {
+            if let Entry::Put(bytes) = entry {
+                let gs = GSet::from_bytes(bytes);
+                result.merge(&gs);
+            }
+        }
+
+        for (_, _path, reader) in self.sstables.iter().rev() {
+            if let Some(bytes) = reader.get(key)? {
+                let gs = GSet::from_bytes(&bytes);
+                result.merge(&gs);
+            }
+        }
+
+        Ok(result.elements())
+    }
 
     fn flush_immutable(&mut self, frozen: MemTable) -> Result<()> {
         let id = self.alloc_table_id();

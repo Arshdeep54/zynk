@@ -38,6 +38,7 @@ fn main() {
                     println!("OK");
                 }
             }
+        
             "get" => {
                 let k = match parts.next() {
                     Some(s) => s.as_bytes(),
@@ -55,6 +56,7 @@ fn main() {
                     Err(e) => println!("error: {e}"),
                 }
             }
+        
             "del" | "delete" => {
                 let k = match parts.next() {
                     Some(s) => s.as_bytes(),
@@ -69,6 +71,7 @@ fn main() {
                     println!("1");
                 }
             }
+        
             "flush" => {
                 if let Err(e) = engine.flush() {
                     println!("error: {e}");
@@ -76,11 +79,61 @@ fn main() {
                     println!("flushed");
                 }
             }
+
+            "gput" => {
+                let k = match parts.next() {
+                    Some(s) => s.as_bytes().to_vec(),
+                    None => {
+                        println!("usage: gadd <key> <element>");
+                        continue;
+                    }
+                };
+                let elem = match parts.next() {
+                    Some(s) => s.as_bytes().to_vec(),
+                    None => {
+                        println!("usage: gadd <key> <element>");
+                        continue;
+                    }
+                };
+                if let Err(e) = engine.gset_add(k, elem) {
+                    println!("error: {e}");
+                } else {
+                    println!("OK");
+                }
+            }
+
+            "gget" => {
+                let k = match parts.next() {
+                    Some(s) => s.as_bytes(),
+                    None => {
+                        println!("usage: gget <key>");
+                        continue;
+                    }
+                };
+                match engine.gset_get(k) {
+                    Ok(vs) => {
+                        if vs.is_empty() {
+                            println!("(empty set)");
+                        } else {
+                            for v in vs {
+                                match std::str::from_utf8(&v) {
+                                    Ok(s) => println!("{s}"),
+                                    Err(_) => println!("0x{}", hex::encode(v)),
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => println!("error: {e}"),
+                }
+            }
+        
             "exit" | "quit" => {
                 println!("bye");
                 break;
             }
+        
             _ => println!("unknown command: {cmd}"),
         }
+
     }
 }
