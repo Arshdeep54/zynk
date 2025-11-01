@@ -5,3 +5,5 @@ edition = "2024"
 
 [dependencies]
 crc32fast = "1.4"
+input_handler = "0.1"
+hex = "0.4"

@@ -1,82 +1,86 @@
+use input_handler::InputHandler;
+use kvcrdt::engine::kv::LsmEngine;
+use std::path::PathBuf;
+
 fn main() {
-    use kvcrdt::engine::kv::KvStore;
-    use std::io::{self, Write};
+    let mut engine = LsmEngine::new("data", 64 * 1024, 8 * 1024).expect("engine");
 
-    let store = KvStore::new();
-    println!("kvcrdt in-memory KV store. Type 'help' for commands.");
+    let mut ih = InputHandler::with_history_file(PathBuf::from("data/history")).expect("input");
 
-    loop {
-        print!("> ");
-        io::stdout().flush().ok();
+    println!("kvcrdt LSM KV. Commands: put/get/del/flush/exit");
 
-        let mut line = String::new();
-        if io::stdin().read_line(&mut line).is_err() {
-            eprintln!("error: failed to read input");
-            continue;
-        }
+    while let Ok(line) = ih.readline("kv> ") {
         let line = line.trim();
         if line.is_empty() {
             continue;
         }
-
         let mut parts = line.splitn(3, ' ');
         let cmd = parts.next().unwrap().to_lowercase();
-
         match cmd.as_str() {
             "put" => {
-                let key = match parts.next() {
-                    Some(k) => k.to_string(),
+                let k = match parts.next() {
+                    Some(s) => s.as_bytes(),
                     None => {
-                        eprintln!("usage: put <key> <value>");
+                        println!("usage: put <key> <value>");
                         continue;
                     }
                 };
-                let value = match parts.next() {
-                    Some(v) => v.to_string(),
+                let v = match parts.next() {
+                    Some(s) => s.as_bytes(),
                     None => {
-                        eprintln!("usage: put <key> <value>");
+                        println!("usage: put <key> <value>");
                         continue;
                     }
                 };
-                store.put(key, value);
-                println!("OK");
+                if let Err(e) = engine.put(k, v) {
+                    println!("error: {e}");
+                } else {
+                    println!("OK");
+                }
             }
             "get" => {
-                let key = match parts.next() {
-                    Some(k) => k,
+                let k = match parts.next() {
+                    Some(s) => s.as_bytes(),
                     None => {
-                        eprintln!("usage: get <key>");
+                        println!("usage: get <key>");
                         continue;
                     }
                 };
-                match store.get(key) {
-                    Some(v) => println!("{v}"),
-                    None => println!("(nil)"),
+                match engine.get(k) {
+                    Ok(Some(v)) => match std::str::from_utf8(&v) {
+                        Ok(s) => println!("{s}"),
+                        Err(_) => println!("0x{}", hex::encode(v)),
+                    },
+                    Ok(None) => println!("(nil)"),
+                    Err(e) => println!("error: {e}"),
                 }
             }
             "del" | "delete" => {
-                let key = match parts.next() {
-                    Some(k) => k,
+                let k = match parts.next() {
+                    Some(s) => s.as_bytes(),
                     None => {
-                        eprintln!("usage: del <key>");
+                        println!("usage: del <key>");
                         continue;
                     }
                 };
-                let removed = store.delete(key);
-                println!("{}", if removed { 1 } else { 0 });
+                if let Err(e) = engine.delete(k) {
+                    println!("error: {e}");
+                } else {
+                    println!("1");
+                }
             }
-            "help" => {
-                println!(
-                    "Commands:\n  put <key> <value>\n  get <key>\n  del <key>\n  exit | quit | Ctrl+D"
-                );
+            "flush" => {
+                if let Err(e) = engine.flush() {
+                    println!("error: {e}");
+                } else {
+                    println!("flushed");
+                }
             }
             "exit" | "quit" => {
                 println!("bye");
                 break;
             }
-            _ => {
-                eprintln!("unknown command: {cmd}");
-            }
+            _ => println!("unknown command: {cmd}"),
         }
     }
 }
