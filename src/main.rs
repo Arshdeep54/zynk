@@ -126,6 +126,25 @@ fn main() {
                     Err(e) => println!("error: {e}"),
                 }
             }
+
+            "ggetraw" => {
+                let k = match parts.next() {
+                    Some(s) => s.as_bytes(),
+                    None => {
+                        println!("usage: ggetraw <key>");
+                        continue;
+                    }
+                };
+                match engine.get(k) {
+                    Ok(Some(v)) => {
+                        println!("hex: {}", hex::encode(&v));
+                        println!("raw: {:?}", v);
+                    }
+                    Ok(None) => println!("(nil)"),
+                    Err(e) => println!("error: {e}"),
+                }
+            }
+
         
             "exit" | "quit" => {
                 println!("bye");
