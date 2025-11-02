@@ -16,13 +16,14 @@ use pb::{DelRequest, DelResponse, GetRequest, GetResponse, PutRequest, PutRespon
 #[derive(Clone)]
 struct BackendPool {
     clients: Arc<Vec<Arc<RwLock<KvClient<Channel>>>>>,
+    endpoints: Arc<Vec<String>>, // human-readable endpoints for logging
     rr: Arc<AtomicUsize>,
 }
 
 impl BackendPool {
     async fn new(endpoints: Vec<String>) -> Result<Self, Box<dyn std::error::Error>> {
         let mut clients = Vec::with_capacity(endpoints.len());
-        for ep in endpoints {
+        for ep in endpoints.iter() {
             let ch = Channel::from_shared(format!("http://{ep}"))?
                 .connect()
                 .await?;
@@ -30,15 +31,16 @@ impl BackendPool {
         }
         Ok(Self {
             clients: Arc::new(clients),
+            endpoints: Arc::new(endpoints),
             rr: Arc::new(AtomicUsize::new(0)),
         })
     }
 
     // round-robin
-    fn pick(&self) -> Arc<RwLock<KvClient<Channel>>> {
+    fn pick(&self) -> (usize, Arc<RwLock<KvClient<Channel>>>) {
         let len = self.clients.len().max(1);
         let idx = self.rr.fetch_add(1, Ordering::Relaxed) % len;
-        self.clients[idx].clone()
+        (idx, self.clients[idx].clone())
     }
 }
 
@@ -50,7 +52,9 @@ struct LbSvc {
 impl Kv for LbSvc {
     async fn put(&self, request: Request<PutRequest>) -> Result<Response<PutResponse>, Status> {
         let req = request.into_inner();
-        let client = self.pool.pick();
+        let (idx, client) = self.pool.pick();
+        let backend = &self.pool.endpoints[idx];
+        println!("LB forwarding Put to {backend}");
         let mut cli = client.write().await;
         cli.put(Request::new(req))
             .await
@@ -60,7 +64,9 @@ impl Kv for LbSvc {
 
     async fn get(&self, request: Request<GetRequest>) -> Result<Response<GetResponse>, Status> {
         let req = request.into_inner();
-        let client = self.pool.pick();
+        let (idx, client) = self.pool.pick();
+        let backend = &self.pool.endpoints[idx];
+        println!("LB forwarding Get to {backend}");
         let mut cli = client.write().await;
         match cli.get(Request::new(req)).await {
             Ok(resp) => Ok(resp),
@@ -70,7 +76,9 @@ impl Kv for LbSvc {
 
     async fn del(&self, request: Request<DelRequest>) -> Result<Response<DelResponse>, Status> {
         let req = request.into_inner();
-        let client = self.pool.pick();
+        let (idx, client) = self.pool.pick();
+        let backend = &self.pool.endpoints[idx];
+        println!("LB forwarding Del to {backend}");
         let mut cli = client.write().await;
         cli.del(Request::new(req))
             .await

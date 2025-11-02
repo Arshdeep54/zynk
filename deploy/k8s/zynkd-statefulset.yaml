@@ -13,6 +13,7 @@ spec:
       labels:
         app: zynkd
     spec:
+      serviceAccountName: zynk-sa
       containers:
         - name: zynkd
           image: zynk-kv:latest
@@ -31,6 +32,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             - name: PEERS
               value: "zynkd-0.zynkd-headless:50051,zynkd-1.zynkd-headless:50051,zynkd-2.zynkd-headless:50051"
           volumeMounts:

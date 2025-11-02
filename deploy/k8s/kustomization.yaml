@@ -4,3 +4,5 @@ resources:
   - zynkd-headless.yaml
   - zynkd-statefulset.yaml
   - zynk-lb.yaml
+  - lease.yaml
+  - rbac.yaml
